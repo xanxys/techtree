@@ -1,13 +1,19 @@
 #!/bin/python3
 import numpy as np
 import csv
+import re
 
 
 class InputCoefficientTable:
     def __init__(self, path):
         self._parse_jp_input_coeff_table(path)
-        print(self.coeff_code_names)
-        print(self.coeff_matrix)
+
+        for ix_code in range(self.num_codes):
+            top_inputs = sorted(
+                enumerate(self.coeff_matrix[:, ix_code]), key=lambda t: t[1], reverse=True)
+
+            print(self.coeff_code_names[ix_code], ["%.3f:%s" % (
+                k, self.coeff_code_names[i]) for (i, k) in top_inputs[:5]])
 
     def _parse_jp_input_coeff_table(self, path):
         """
@@ -37,7 +43,7 @@ class InputCoefficientTable:
 
         list_codes = rows[ROW_IX_CODE][COL_IX_DATA_START:COL_IX_DATA_END]
         code_to_name_table = dict(zip(rows[ROW_IX_CODE][COL_IX_DATA_START:COL_IX_DATA_END],
-                                      rows[ROW_IX_CODE_NAME][COL_IX_DATA_START:COL_IX_DATA_END]))
+                                      map(self.cleanup_codename, rows[ROW_IX_CODE_NAME][COL_IX_DATA_START:COL_IX_DATA_END])))
 
         ix_list_code = 0
         verified_data_rows = []
@@ -65,9 +71,21 @@ class InputCoefficientTable:
         if coeff_matrix.shape != (len(verified_data_rows), len(verified_data_rows)):
             raise ValueError("Coeff matrix size and code size not matching")
 
+        self.num_codes = len(list_codes)
         self.coeff_code_names = [code_to_name_table[code]
                                  for code in list_codes]
         self.coeff_matrix = coeff_matrix
+
+    @staticmethod
+    def cleanup_codename(codename_with_prefix):
+        """
+        Returns real japanese codename e.g. "飲食サービス" from number-prefixed input e.g. "6721_飲食サービス"
+        """
+        ix = codename_with_prefix.find('_')
+        if ix >= 0:
+            return codename_with_prefix[ix+1:]
+        else:
+            return codename_with_prefix
 
 
 def main():
