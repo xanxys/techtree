@@ -1,19 +1,59 @@
 #!/bin/python3
 import numpy as np
+import pandas as pd
+import networkx as nx
+import matplotlib
+import matplotlib.pyplot as plt
 import csv
 import re
+
+# Only fixes matplotlib, not networkx labels
+# cf. https://qiita.com/grachro/items/4c9b03366cae2df3a301
+plt.rcParams['font.family'] = 'Droid Sans'
 
 
 class InputCoefficientTable:
     def __init__(self, path):
         self._parse_jp_input_coeff_table(path)
 
+        df_srcs = []
+        df_dsts = []
+
         for ix_code in range(self.num_codes):
+            curr_code = self.coeff_code_names[ix_code]
+
             top_inputs = sorted(
                 enumerate(self.coeff_matrix[:, ix_code]), key=lambda t: t[1], reverse=True)
 
-            print(self.coeff_code_names[ix_code], ["%.3f:%s" % (
-                k, self.coeff_code_names[i]) for (i, k) in top_inputs[:5]])
+            print(curr_code, ["%.3f:%s" % (
+                k, self.coeff_code_names[i]) for (i, k) in top_inputs if k > 0.05])
+
+            for (i, k) in top_inputs:
+                if k < 0.05:
+                    continue
+                if i == ix_code:
+                    print("Skipped self-loop for %s (k=%.4f)" %
+                          (curr_code, k))
+                    continue
+                df_srcs.append(self.coeff_code_names[i])
+                df_dsts.append(curr_code)
+
+        df = pd.DataFrame({'from': df_srcs, 'to': df_dsts})
+        G = nx.from_pandas_dataframe(
+            df, 'from', 'to', create_using=nx.DiGraph())
+
+        try:
+            print("cycles:", nx.find_cycle(G))
+        except nx.exception.NetworkXNoCycle:
+            print("--> no cycles!")
+            pass
+
+        pos = nx.spring_layout(G, iterations=500)
+
+        nx.draw(G, pos=pos, with_labels=True, node_size=1500,
+                alpha=0.3, arrows=True, font_family='VL Gothic')
+        plt.title("Techtree")
+        plt.show()
 
     def _parse_jp_input_coeff_table(self, path):
         """
